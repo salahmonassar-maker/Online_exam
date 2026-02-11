@@ -53,15 +53,18 @@ const examSelect=document.getElementById("examSelect");
 let examData=null;
 let answers=[];
 
-// ===== تحميل قائمة الاختبارات =====
+// ===== تحميل قائمة الاختبارات المنشورة فقط =====
 async function loadExamList(){
     examSelect.innerHTML='<option value="">-- اختر اختباراً --</option>';
-    const snapshot=await db.collection("exams").orderBy("createdAt").get();
+    const snapshot = await db.collection("exams")
+                             .where("isPublished","==",true)
+                             .orderBy("createdAt")
+                             .get();
     snapshot.forEach(doc=>{
-        const d=doc.data();
+        const d = doc.data();
         let opt=document.createElement("option");
         opt.value=doc.id;
-        opt.text=d.subject+" - "+d.topic;
+        opt.text=d.subject + " - " + d.topic;
         examSelect.appendChild(opt);
     });
 }
