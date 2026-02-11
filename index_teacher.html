@@ -103,9 +103,9 @@ function importQuestions(e){let file=e.target.files[0];if(!file)return;let reade
 // ===== تحميل قائمة الاختبارات =====
 async function loadExamList(){
     examSelect.innerHTML='<option value="">-- اختر اختباراً --</option>';
-    const snapshot = await db.collection("exams").orderBy("createdAt").get();
+    const snapshot=await db.collection("exams").orderBy("createdAt").get();
     snapshot.forEach(doc=>{
-        const d = doc.data();
+        const d=doc.data();
         let opt=document.createElement("option");
         opt.value=doc.id;
         opt.text=d.subject+" - "+d.topic;
@@ -143,7 +143,7 @@ function publishExam(){
         numQuestions:+numQuestions.value||questions.length,
         timeLimit:+timeLimit.value||10,
         createdAt:firebase.firestore.FieldValue.serverTimestamp(),
-        isPublished:true
+        isPublished:true // ✅ يظهر للطلاب مباشرة
     }).then(()=>{alert("✔️ تم نشر الاختبار بنجاح!");loadExamList();}).catch(err=>alert("❌ خطأ: "+err));
 }
 
