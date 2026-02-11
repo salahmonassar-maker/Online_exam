@@ -2,7 +2,7 @@
 <html lang="ar">
 <head>
 <meta charset="UTF-8">
-<title>نظام المعلم – إدارة الاختبارات</title>
+<title>نظام الطالب – الاختبارات</title>
 <style>
 body{
     font-family: Tahoma;
@@ -21,7 +21,7 @@ body{
     margin-top:20px;
 }
 h1,h2,h3{color:#ffdd57;}
-input,button,select{
+input,button{
     padding:10px;
     margin:6px 0;
     border-radius:8px;
@@ -36,18 +36,9 @@ button:hover{background:#f1c40f;}
     border-radius:8px;
     margin:10px 0;
 }
-table,ul{
-    width:100%;
-    border-collapse:collapse;
-}
-th,td{
-    border:1px solid #fff;
-    padding:8px;
-    text-align:center;
-}
 ul{list-style:none; padding:0;}
 li{background:#34495e; margin:5px 0; padding:8px; border-radius:5px;}
-select{width:100%; margin-bottom:10px;}
+label{display:block; margin-top:10px;}
 
 /* CSS للطباعة */
 @media print {
@@ -55,69 +46,27 @@ select{width:100%; margin-bottom:10px;}
     body { background:#fff; color:#000; }
     .container { background:#fff; width:100%; }
     .question { background:#eee; color:#000; }
-    td,th,li { background:#eee; color:#000; border:1px solid #000; }
 }
 </style>
 </head>
 <body>
 
 <div class="container">
-<h1>نظام إدارة الاختبارات – المعلم</h1>
+<h1>نظام الطالب – الاختبارات</h1>
 
-<h3>المواضيع المنشورة</h3>
-<select id="topicsList"></select>
-<button onclick="deleteTopic()" style="background:#c0392b;color:#fff">❌ حذف الموضوع المحدد</button>
-<button onclick="replaceTopic()" style="background:#2980b9;color:#fff">🔄 استبدال الموضوع</button>
-
-<hr>
-
+<h3>اختر المادة والموضوع</h3>
 <input id="subjectInput" placeholder="اسم المادة">
-<input id="topicInput" placeholder="اسم الموضوع"><br>
-
-<label>عدد الأسئلة: <input type="number" id="numQuestions" value="5"></label>
-<label>زمن الاختبار (دقائق): <input type="number" id="timeLimit" value="10"></label>
-
-<br><br>
-<button onclick="publishTopic()">📢 نشر الموضوع</button>
+<input id="topicInput" placeholder="اسم الموضوع">
+<button onclick="loadExam()">🔍 تحميل الاختبار</button>
 
 <hr>
 
-<h3>إضافة سؤال</h3>
-<input id="qText" style="width:95%" placeholder="نص السؤال"><br>
-<input id="o0" placeholder="الخيار 1">
-<input id="o1" placeholder="الخيار 2">
-<input id="o2" placeholder="الخيار 3">
-<input id="o3" placeholder="الخيار 4"><br>
-<input id="correct" type="number" min="0" max="3" placeholder="رقم الإجابة الصحيحة (0-3)">
-<br>
-<button onclick="addQuestion()">➕ إضافة سؤال</button>
-<button onclick="updateQuestion()">✏️ تعديل السؤال</button>
-
-<hr>
-
-<h3>الأسئلة</h3>
-<table id="questionsTable">
-<tr><th>#</th><th>السؤال</th><th>الإجراءات</th></tr>
-</table>
-
-<br>
-<button onclick="exportQuestions()">⬇️ تصدير الأسئلة</button>
-<input type="file" id="importFile" onchange="importQuestions(event)">
-
-<br><br>
-<button onclick="publishExam()">💾 نشر الاختبار للطلاب</button>
-<button onclick="window.print()">🖨️ طباعة الأسئلة</button>
-
-<hr>
-
-<h2>كشف نتائج الطلاب</h2>
-<table id="resultsTable">
-<tr><th>الطالب</th><th>الدرجة</th></tr>
-</table>
-
-<button onclick="loadResults()">📥 تحميل النتائج</button>
-<button onclick="archiveAndDeleteResults()" style="background:#8e44ad;color:#fff">📦 أرشفة ومسح كشف الطلاب</button>
-<button onclick="window.print()">🖨️ طباعة الكشف</button>
+<div id="examArea" style="display:none;">
+<h2 id="examTitle"></h2>
+<p id="examInfo"></p>
+<div id="questionsContainer"></div>
+<button onclick="submitExam()">✅ إرسال النتائج</button>
+</div>
 
 </div>
 
@@ -126,236 +75,118 @@ select{width:100%; margin-bottom:10px;}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-// ----- Firebase Config -----
 const firebaseConfig = {
-  apiKey: "AIzaSyAC4PNyd-nolBmhhbn_AIWS5e1FaN4DoMI",
+  apiKey:"AIzaSyAC4PNyd-nolBmhhbn_AIWS5e1FaN4DoMI",
   authDomain: "online-exam-3d750.firebaseapp.com",
   projectId: "online-exam-3d750",
-  storageBucket: "online-exam-3d750.firebasestorage.app",
-  messagingSenderId: "630696307824",
-  appId: "1:630696307824:web:9ed45dc0ff4434e1b858b5",
-  measurementId: "G-Q4WNK7QVMF"
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-// ----- المتغيرات -----
-let questions = [];
-let editIndex = null;
-const questionsTable = document.getElementById("questionsTable");
-const resultsTable = document.getElementById("resultsTable");
-const topicsList = document.getElementById("topicsList");
+// تفعيل التخزين المحلي (offline)
+db.enablePersistence().catch((err)=>console.log("Persistence error:", err.code));
 
-// ===== إدارة الأسئلة =====
-function addQuestion(){
-    questions.push({q:qText.value, o:[o0.value,o1.value,o2.value,o3.value], a:+correct.value});
-    clearForm(); renderQuestions();
-}
+let examData = null;
+let answers = [];
 
-function updateQuestion(){
-    if(editIndex===null) return;
-    questions[editIndex] = {q:qText.value, o:[o0.value,o1.value,o2.value,o3.value], a:+correct.value};
-    editIndex=null; clearForm(); renderQuestions();
-}
-
-function renderQuestions(){
-    questionsTable.innerHTML="<tr><th>#</th><th>السؤال</th><th>الإجراءات</th></tr>";
-    questions.forEach((q,i)=>{
-        let r=questionsTable.insertRow();
-        r.insertCell(0).innerText=i+1;
-        r.insertCell(1).innerText=q.q;
-        r.insertCell(2).innerHTML=`<button onclick="editQuestion(${i})">✏️</button>
-                                   <button onclick="deleteQuestion(${i})">❌</button>`;
-    });
-}
-
-function editQuestion(i){
-    editIndex=i;
-    qText.value=questions[i].q;
-    [o0.value,o1.value,o2.value,o3.value]=questions[i].o;
-    correct.value=questions[i].a;
-}
-
-function deleteQuestion(i){
-    if(confirm("هل تريد حذف هذا السؤال؟")){
-        questions.splice(i,1); renderQuestions();
-    }
-}
-
-function clearForm(){
-    qText.value=o0.value=o1.value=o2.value=o3.value=correct.value="";
-}
-
-// ===== تصدير واستيراد =====
-function exportQuestions(){
-    if(questions.length===0){ alert("لا توجد أسئلة لتصديرها"); return; }
-    let a=document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([JSON.stringify(questions)], {type:"application/json"}));
-    a.download="questions.json"; a.click();
-}
-
-function importQuestions(e){
-    let file=e.target.files[0]; if(!file) return;
-    let reader=new FileReader();
-    reader.onload=()=>{
-        try{questions=JSON.parse(reader.result); renderQuestions(); alert("تم استيراد الأسئلة بنجاح!");}
-        catch(err){alert("ملف غير صالح");}
-    }; reader.readAsText(file);
-}
-
-// ===== نشر الموضوع =====
-function publishTopic(){
+// ==== تحميل الاختبار ====
+async function loadExam(){
     let subject = subjectInput.value.trim();
     let topic = topicInput.value.trim();
-    if(!subject || !topic){ alert("⚠️ أدخل اسم المادة والموضوع"); return; }
-
-    db.collection("topics").doc(subject+"_"+topic).set({
-        subject, topic, createdAt:new Date()
-    }).then(()=>{
-        alert("✔️ تم نشر الموضوع بنجاح!");
-        addTopicToList(subject, topic);
-    })
-    .catch(err=>alert("حدث خطأ أثناء نشر الموضوع: "+err));
-}
-
-function addTopicToList(subject, topic){
-    let option = document.createElement("option");
-    option.value = subject+"_"+topic;
-    option.text = subject + " - " + topic;
-    topicsList.appendChild(option);
-}
-
-async function loadTopics(){
-    const snapshot = await db.collection("topics").orderBy("createdAt").get();
-    snapshot.forEach(doc=>{
-        const data = doc.data();
-        addTopicToList(data.subject, data.topic);
-    });
-}
-
-// حذف موضوع محدد
-function deleteTopic(){
-    let selected = topicsList.value;
-    if(!selected){ alert("اختر موضوعًا أولاً"); return; }
-    if(confirm("هل تريد حذف هذا الموضوع نهائيًا؟")){
-        db.collection("topics").doc(selected).delete().then(()=>{
-            alert("✅ تم حذف الموضوع");
-            loadTopicsListAfterChange();
-        });
-    }
-}
-
-// استبدال موضوع
-function replaceTopic(){
-    let selected = topicsList.value;
-    let newSubject = prompt("أدخل اسم المادة الجديد:");
-    let newTopic = prompt("أدخل اسم الموضوع الجديد:");
-    if(!selected || !newSubject || !newTopic) return;
-    db.collection("topics").doc(selected).set({
-        subject: newSubject,
-        topic: newTopic,
-        createdAt: new Date()
-    }).then(()=>{
-        alert("✅ تم استبدال الموضوع");
-        loadTopicsListAfterChange();
-    });
-}
-
-// إعادة تحميل القائمة بعد حذف/استبدال
-async function loadTopicsListAfterChange(){
-    topicsList.innerHTML = "";
-    await loadTopics();
-}
-
-// ===== نشر الاختبار =====
-function publishExam(){
-    let subject = subjectInput.value.trim();
-    let topic = topicInput.value.trim();
-    if(!subject||!topic||questions.length===0){
-        alert("⚠️ البيانات ناقصة أو لا توجد أسئلة"); return;
-    }
-    db.collection("exams").doc(subject+"_"+topic).set({
-        subject, topic, questions,
-        numQuestions:+numQuestions.value,
-        timeLimit:+timeLimit.value,
-        createdAt:new Date()
-    }).then(()=>alert("✔️ تم نشر الاختبار بنجاح!"));
-}
-
-// ===== تحميل نتائج الطلاب =====
-function loadResults(){
-    resultsTable.innerHTML="<tr><th>الطالب</th><th>الدرجة</th></tr>";
-    let subject = subjectInput.value.trim();
-    let topic = topicInput.value.trim();
-    if(!subject || !topic){ alert("أدخل المادة والموضوع أولاً"); return; }
-
-    db.collection("results")
-      .where("subject","==",subject)
-      .where("topic","==",topic)
-      .get()
-      .then(snapshot=>{
-          snapshot.forEach(doc=>{
-              let r = doc.data();
-              let row = resultsTable.insertRow();
-              row.insertCell(0).innerText = r.student;
-              row.insertCell(1).innerText = r.score + "/" + r.total;
-          });
-      });
-}
-
-// ===== أرشفة ومسح كشف الطلاب =====
-async function archiveAndDeleteResults() {
-    let subject = subjectInput.value.trim();
-    let topic = topicInput.value.trim();
-
-    if (!subject || !topic) {
-        alert("⚠️ أدخل اسم المادة والموضوع أولاً");
-        return;
-    }
-
-    const ok = confirm(
-        "⚠️ سيتم أرشفة جميع نتائج الطلاب لهذا الاختبار ثم حذفها من لوحة المعلم.\nهل أنت متأكد؟"
-    );
-    if (!ok) return;
+    if(!subject||!topic){ alert("⚠️ أدخل المادة والموضوع"); return; }
 
     try {
-        const snapshot = await db.collection("results")
-            .where("subject", "==", subject)
-            .where("topic", "==", topic)
-            .get();
-
-        if (snapshot.empty) {
-            alert("لا توجد نتائج لأرشفتها أو حذفها");
-            return;
+        const doc = await db.collection("exams").doc(subject+"_"+topic).get({source:'default'});
+        if(doc.exists){
+            examData = doc.data();
+            localStorage.setItem("cachedExam", JSON.stringify(examData));
+            startExam(examData);
+        } else {
+            alert("❌ لا يوجد اختبار منشور");
         }
-
-        const batch = db.batch();
-        const archiveBatch = db.batch();
-
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            archiveBatch.set(db.collection("archive_results").doc(doc.id), {
-                ...data,
-                archivedAt: new Date()
-            });
-            batch.delete(doc.ref);
-        });
-
-        await archiveBatch.commit();
-        await batch.commit();
-
-        resultsTable.innerHTML = "<tr><th>الطالب</th><th>الدرجة</th></tr>";
-
-        alert("✅ تم أرشفة النتائج ومسحها من لوحة المعلم بنجاح");
-
     } catch (err) {
-        alert("❌ حدث خطأ أثناء الأرشفة والحذف: " + err.message);
+        console.log("فشل الاتصال، محاولة استخدام النسخة المخزنة...");
+        let cached = localStorage.getItem("cachedExam");
+        if(cached){
+            examData = JSON.parse(cached);
+            startExam(examData);
+        } else {
+            alert("❌ لا يوجد اتصال بالإنترنت ولا نسخة محفوظة");
+        }
     }
 }
 
-// ===== بدء الصفحة =====
-renderQuestions();
-loadTopics();
+// ==== بدء الاختبار ====
+function startExam(data){
+    document.getElementById("examArea").style.display="block";
+    document.getElementById("examTitle").innerText = data.subject + " - " + data.topic;
+    document.getElementById("examInfo").innerText = `عدد الأسئلة: ${data.numQuestions}, زمن الاختبار: ${data.timeLimit} دقيقة`;
+
+    const container = document.getElementById("questionsContainer");
+    container.innerHTML="";
+    answers = new Array(data.questions.length).fill(null);
+
+    data.questions.forEach((q,i)=>{
+        let div = document.createElement("div");
+        div.className="question";
+        div.innerHTML = `<p>${i+1}. ${q.q}</p>
+        <label><input type="radio" name="q${i}" value="0"> ${q.o[0]}</label>
+        <label><input type="radio" name="q${i}" value="1"> ${q.o[1]}</label>
+        <label><input type="radio" name="q${i}" value="2"> ${q.o[2]}</label>
+        <label><input type="radio" name="q${i}" value="3"> ${q.o[3]}</label>`;
+        container.appendChild(div);
+
+        // متابعة اختيار الطالب
+        div.querySelectorAll('input[type=radio]').forEach(r=>{
+            r.addEventListener("change", ()=>{
+                answers[i] = +r.value;
+            });
+        });
+    });
+}
+
+// ==== إرسال النتائج ====
+async function submitExam(){
+    if(!examData){ alert("❌ لا يوجد اختبار لتحميله"); return; }
+    const studentName = prompt("أدخل اسمك");
+    if(!studentName) return;
+
+    let score=0;
+    examData.questions.forEach((q,i)=>{
+        if(answers[i]===q.a) score++;
+    });
+
+    const result = {
+        student: studentName,
+        subject: examData.subject,
+        topic: examData.topic,
+        score: score,
+        total: examData.questions.length,
+        timestamp: new Date()
+    };
+
+    try {
+        await db.collection("results").add(result);
+        alert(`✔️ تم إرسال نتيجتك! الدرجة: ${score}/${examData.questions.length}`);
+    } catch {
+        localStorage.setItem("pendingResult", JSON.stringify(result));
+        alert(`✔️ تم حفظ النتيجة مؤقتًا وسيتم رفعها عند توفر الإنترنت. الدرجة: ${score}/${examData.questions.length}`);
+    }
+}
+
+// رفع النتائج المؤجلة عند توفر الإنترنت
+window.addEventListener("online", async ()=>{
+    let pending = localStorage.getItem("pendingResult");
+    if(pending){
+        try {
+            await db.collection("results").add(JSON.parse(pending));
+            localStorage.removeItem("pendingResult");
+            console.log("✅ تم رفع النتيجة المؤجلة");
+        } catch(e){
+            console.log("فشل رفع النتيجة المؤجلة", e);
+        }
+    }
+});
 </script>
 
 </body>
