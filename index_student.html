@@ -5,16 +5,14 @@
 <title>نظام الطالب – الاختبارات</title>
 <style>
 body{font-family:Tahoma;direction:rtl;background:#1b2735;color:#fff;margin:0;padding:0;}
-.container{max-width:1000px;margin:auto;background:#2c3e50;border-radius:15px;padding:20px;margin-top:20px;}
+.container{max-width:800px;margin:auto;background:#2c3e50;border-radius:15px;padding:20px;margin-top:20px;}
 h1,h2,h3{color:#ffdd57;}
-input,button,select{padding:8px;margin:6px 0;border-radius:8px;border:none;font-size:16px;width:50%;max-width:300px;}
+input,button,select{padding:6px;margin:4px 0;border-radius:6px;border:none;font-size:14px;width:48%;max-width:200px;}
 button{background:#f39c12;cursor:pointer;}button:hover{background:#f1c40f;}
-.question{background:#34495e;padding:10px;border-radius:8px;margin:10px 0;}
-@media print{button,input,select{display:none;}body{background:#fff;color:#000;}.container{background:#fff;width:100%;}.question{background:#eee;color:#000;}}
+.question{background:#34495e;padding:10px;border-radius:8px;margin:6px 0;}
 </style>
 </head>
 <body>
-
 <div class="container">
 <h1>نظام الطالب – الاختبارات</h1>
 
@@ -38,19 +36,17 @@ button{background:#f39c12;cursor:pointer;}button:hover{background:#f1c40f;}
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
 <script>
 const firebaseConfig={apiKey:"AIzaSyAC4PNyd-nolBmhhbn_AIWS5e1FaN4DoMI",authDomain:"online-exam-3d750.firebaseapp.com",projectId:"online-exam-3d750"};
 firebase.initializeApp(firebaseConfig);
 const db=firebase.firestore();
-db.enablePersistence().catch(err=>console.log("Persistence error:",err.code));
 
 let examData=null;
 let answers=[];
 
-// تحميل قائمة الاختبارات المنشورة
+const examSelect=document.getElementById("examSelect");
+
 async function loadExamList(){
-    const examSelect=document.getElementById("examSelect");
     examSelect.innerHTML='<option value="">-- اختر اختباراً --</option>';
     const snapshot=await db.collection("exams").where("isPublished","==",true).orderBy("createdAt").get();
     snapshot.forEach(doc=>{
@@ -63,41 +59,21 @@ async function loadExamList(){
 }
 loadExamList();
 
-// تحميل الاختبار
 async function loadExam(){
     const student=document.getElementById("studentName").value.trim();
-    const selected=document.getElementById("examSelect").value;
-    if(!student){alert("⚠️ أدخل اسمك أولاً"); return;}
+    const selected=examSelect.value;
+    if(!student){alert("⚠️ أدخل اسمك"); return;}
     if(!selected){alert("⚠️ اختر اختباراً"); return;}
-
-    try {
-        const doc=await db.collection("exams").doc(selected).get();
-        if(doc.exists){
-            examData=doc.data();
-            localStorage.setItem("cachedExam",JSON.stringify(examData));
-            startExam(examData);
-        } else {
-            alert("❌ الاختبار غير موجود");
-        }
-    } catch (err) {
-        console.log("فشل الاتصال، محاولة استخدام النسخة المخزنة...");
-        let cached=localStorage.getItem("cachedExam");
-        if(cached){examData=JSON.parse(cached);startExam(examData);}
-        else{alert("❌ لا يوجد اتصال بالإنترنت ولا نسخة محفوظة");}
-    }
-}
-
-// بدء الاختبار
-function startExam(data){
+    const doc=await db.collection("exams").doc(selected).get();
+    if(!doc.exists){alert("❌ الاختبار غير موجود"); return;}
+    examData=doc.data();
+    answers=new Array(examData.questions.length).fill(null);
     document.getElementById("examArea").style.display="block";
-    document.getElementById("examTitle").innerText=data.subject+" - "+data.topic;
-    document.getElementById("examInfo").innerText=`عدد الأسئلة: ${data.numQuestions}, زمن الاختبار: ${data.timeLimit} دقيقة`;
-
+    document.getElementById("examTitle").innerText=examData.subject+" - "+examData.topic;
+    document.getElementById("examInfo").innerText=`عدد الأسئلة: ${examData.numQuestions}, زمن الاختبار: ${examData.timeLimit} دقيقة`;
     const container=document.getElementById("questionsContainer");
     container.innerHTML="";
-    answers=new Array(data.questions.length).fill(null);
-
-    data.questions.forEach((q,i)=>{
+    examData.questions.forEach((q,i)=>{
         let div=document.createElement("div");
         div.className="question";
         div.innerHTML=`<p>${i+1}. ${q.q}</p>
@@ -106,38 +82,19 @@ function startExam(data){
         <label><input type="radio" name="q${i}" value="2"> ${q.o[2]}</label>
         <label><input type="radio" name="q${i}" value="3"> ${q.o[3]}</label>`;
         container.appendChild(div);
-        div.querySelectorAll('input[type=radio]').forEach(r=>{r.addEventListener("change",()=>{answers[i]=+r.value;});});
+        div.querySelectorAll('input[type=radio]').forEach(r=>r.addEventListener("change",()=>{answers[i]=+r.value;}));
     });
 }
 
-// إرسال النتائج
 async function submitExam(){
-    if(!examData){alert("❌ لا يوجد اختبار لتحميله"); return;}
     const student=document.getElementById("studentName").value.trim();
-    if(!student){alert("⚠️ أدخل اسمك أولاً"); return;}
-
+    if(!student){alert("⚠️ أدخل اسمك"); return;}
     let score=0;
     examData.questions.forEach((q,i)=>{if(answers[i]===q.a) score++;});
-
     const result={student,subject:examData.subject,topic:examData.topic,score,total:examData.questions.length,timestamp:new Date()};
-
-    try {
-        await db.collection("results").add(result);
-        alert(`✔️ تم إرسال نتيجتك! الدرجة: ${score}/${examData.questions.length}`);
-    } catch {
-        localStorage.setItem("pendingResult",JSON.stringify(result));
-        alert(`✔️ تم حفظ النتيجة مؤقتًا وسيتم رفعها عند توفر الإنترنت. الدرجة: ${score}/${examData.questions.length}`);
-    }
+    await db.collection("results").add(result);
+    alert(`✔️ تم إرسال النتيجة! الدرجة: ${score}/${examData.questions.length}`);
 }
-
-// رفع النتائج المؤجلة عند توفر الإنترنت
-window.addEventListener("online",async()=>{
-    let pending=localStorage.getItem("pendingResult");
-    if(pending){
-        try{await db.collection("results").add(JSON.parse(pending));localStorage.removeItem("pendingResult");console.log("✅ تم رفع النتيجة المؤجلة");}catch(e){console.log("فشل رفع النتيجة المؤجلة",e);}
-    }
-});
 </script>
-
 </body>
 </html>
