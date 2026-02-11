@@ -7,7 +7,7 @@
 body{font-family:Tahoma;direction:rtl;background:#1b2735;color:#fff;margin:0;padding:0;}
 .container{max-width:800px;margin:auto;background:#2c3e50;border-radius:15px;padding:20px;margin-top:20px;}
 h1,h2,h3{color:#ffdd57;}
-input,button,select{padding:6px;margin:4px 0;border-radius:6px;border:none;font-size:14px;width:48%;max-width:200px;}
+input,button,select{padding:6px;margin:4px 2px;border-radius:6px;border:none;font-size:14px;width:48%;max-width:200px;}
 button{background:#f39c12;cursor:pointer;}button:hover{background:#f1c40f;}
 table{width:100%;border-collapse:collapse;}th,td{border:1px solid #fff;padding:6px;text-align:center;}
 </style>
@@ -17,23 +17,19 @@ table{width:100%;border-collapse:collapse;}th,td{border:1px solid #fff;padding:6
 <h1>نظام إدارة الاختبارات – المعلم</h1>
 
 <h3>الاختبارات المنشورة</h3>
-<select id="examSelect"><option value="">-- اختر اختباراً --</option></select>
-<br>
-<button onclick="loadExamForTeacher()">🔄 تحميل الاختبار</button>
+<select id="examSelect"><option value="">-- اختر اختباراً --</option></select><br>
 <button onclick="showExam()" style="background:#27ae60;color:#fff">👁️ إظهار للطلاب</button>
 <button onclick="deleteExam()" style="background:#e74c3c;color:#fff">❌ حذف الاختبار</button>
 
 <hr>
-
-<h3>إضافة سؤال تجريبي</h3>
+<h3>نشر اختبار تجريبي</h3>
 <button onclick="publishDemoExam()">💾 نشر اختبار تجريبي</button>
-
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script>
-// ---- Firebase ----
+// Firebase
 const firebaseConfig={
 apiKey:"AIzaSyAC4PNyd-nolBmhhbn_AIWS5e1FaN4DoMI",
 authDomain:"online-exam-3d750.firebaseapp.com",
@@ -44,7 +40,6 @@ const db=firebase.firestore();
 db.enablePersistence().catch(err=>console.log(err));
 
 const examSelect=document.getElementById("examSelect");
-let currentExamId=null;
 
 // تحميل قائمة الاختبارات
 async function loadExamList(){
@@ -62,7 +57,7 @@ loadExamList();
 
 // نشر اختبار تجريبي جاهز
 function publishDemoExam(){
-    const docId="DemoMathTest";
+    const docId="DemoMathTest_"+Date.now();
     const demoExam={
         subject:"رياضيات",
         topic:"اختبار تجريبي",
