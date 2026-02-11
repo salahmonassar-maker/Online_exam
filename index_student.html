@@ -40,7 +40,6 @@ button{background:#f39c12;cursor:pointer;}button:hover{background:#f1c40f;}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-// ----- Firebase Config -----
 const firebaseConfig = {
   apiKey: "AIzaSyAC4PNyd-nolBmhhbn_AIWS5e1FaN4DoMI",
   authDomain: "online-exam-3d750.firebaseapp.com",
@@ -57,7 +56,12 @@ let answers=[];
 async function loadExamList(){
     const examSelect=document.getElementById("examSelect");
     examSelect.innerHTML='<option value="">-- اختر اختباراً --</option>';
-    const snapshot=await db.collection("exams").where("isPublished","==",true).orderBy("createdAt").get();
+
+    const snapshot=await db.collection("exams")
+                           .where("isPublished","==",true)
+                           .orderBy("createdAt")
+                           .get();
+
     snapshot.forEach(doc=>{
         const d=doc.data();
         let opt=document.createElement("option");
@@ -156,7 +160,4 @@ window.addEventListener("online",async()=>{
         }catch(e){console.log("فشل رفع النتيجة المؤجلة",e);}
     }
 });
-</script>
-
-</body>
-</html>
+</
