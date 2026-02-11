@@ -40,28 +40,19 @@ button{background:#f39c12;cursor:pointer;}button:hover{background:#f1c40f;}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-const firebaseConfig = {
-  apiKey: "AIzaSyAC4PNyd-nolBmhhbn_AIWS5e1FaN4DoMI",
-  authDomain: "online-exam-3d750.firebaseapp.com",
-  projectId: "online-exam-3d750",
-};
+const firebaseConfig={apiKey:"AIzaSyAC4PNyd-nolBmhhbn_AIWS5e1FaN4DoMI",authDomain:"online-exam-3d750.firebaseapp.com",projectId:"online-exam-3d750"};
 firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+const db=firebase.firestore();
 db.enablePersistence().catch(err=>console.log("Persistence error:",err.code));
 
 let examData=null;
 let answers=[];
 
-// ===== تحميل قائمة الاختبارات المنشورة =====
+// تحميل قائمة الاختبارات المنشورة
 async function loadExamList(){
     const examSelect=document.getElementById("examSelect");
     examSelect.innerHTML='<option value="">-- اختر اختباراً --</option>';
-
-    const snapshot=await db.collection("exams")
-                           .where("isPublished","==",true)
-                           .orderBy("createdAt")
-                           .get();
-
+    const snapshot=await db.collection("exams").where("isPublished","==",true).orderBy("createdAt").get();
     snapshot.forEach(doc=>{
         const d=doc.data();
         let opt=document.createElement("option");
@@ -72,7 +63,7 @@ async function loadExamList(){
 }
 loadExamList();
 
-// ===== تحميل الاختبار =====
+// تحميل الاختبار
 async function loadExam(){
     const student=document.getElementById("studentName").value.trim();
     const selected=document.getElementById("examSelect").value;
@@ -96,7 +87,7 @@ async function loadExam(){
     }
 }
 
-// ===== بدء الاختبار =====
+// بدء الاختبار
 function startExam(data){
     document.getElementById("examArea").style.display="block";
     document.getElementById("examTitle").innerText=data.subject+" - "+data.topic;
@@ -115,14 +106,11 @@ function startExam(data){
         <label><input type="radio" name="q${i}" value="2"> ${q.o[2]}</label>
         <label><input type="radio" name="q${i}" value="3"> ${q.o[3]}</label>`;
         container.appendChild(div);
-
-        div.querySelectorAll('input[type=radio]').forEach(r=>{
-            r.addEventListener("change",()=>{answers[i]=+r.value;});
-        });
+        div.querySelectorAll('input[type=radio]').forEach(r=>{r.addEventListener("change",()=>{answers[i]=+r.value;});});
     });
 }
 
-// ===== إرسال النتائج =====
+// إرسال النتائج
 async function submitExam(){
     if(!examData){alert("❌ لا يوجد اختبار لتحميله"); return;}
     const student=document.getElementById("studentName").value.trim();
@@ -131,14 +119,7 @@ async function submitExam(){
     let score=0;
     examData.questions.forEach((q,i)=>{if(answers[i]===q.a) score++;});
 
-    const result={
-        student,
-        subject:examData.subject,
-        topic:examData.topic,
-        score,
-        total:examData.questions.length,
-        timestamp:new Date()
-    };
+    const result={student,subject:examData.subject,topic:examData.topic,score,total:examData.questions.length,timestamp:new Date()};
 
     try {
         await db.collection("results").add(result);
@@ -149,15 +130,14 @@ async function submitExam(){
     }
 }
 
-// ===== رفع النتائج المؤجلة عند توفر الإنترنت =====
+// رفع النتائج المؤجلة عند توفر الإنترنت
 window.addEventListener("online",async()=>{
     let pending=localStorage.getItem("pendingResult");
     if(pending){
-        try{
-            await db.collection("results").add(JSON.parse(pending));
-            localStorage.removeItem("pendingResult");
-            console.log("✅ تم رفع النتيجة المؤجلة");
-        }catch(e){console.log("فشل رفع النتيجة المؤجلة",e);}
+        try{await db.collection("results").add(JSON.parse(pending));localStorage.removeItem("pendingResult");console.log("✅ تم رفع النتيجة المؤجلة");}catch(e){console.log("فشل رفع النتيجة المؤجلة",e);}
     }
 });
-</
+</script>
+
+</body>
+</html>
