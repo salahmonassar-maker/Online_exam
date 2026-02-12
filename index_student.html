@@ -2,172 +2,208 @@
 <html lang="ar">
 <head>
 <meta charset="UTF-8">
-<title>نظام الطالب – الاختبار</title>
+<title>نظام الطالب – الاختبارات</title>
 <style>
-body{font-family:Tahoma; direction:rtl; background:#1b2735;color:#fff;margin:0;padding:0;}
-.container{max-width:900px;margin:auto;background:#2c3e50;border-radius:15px;padding:20px;margin-top:20px;}
+body{
+    font-family: Tahoma;
+    direction: rtl;
+    background:#1b2735;
+    color:#fff;
+    margin:0;
+    padding:0;
+}
+.container{
+    max-width:1000px;
+    margin:auto;
+    background:#2c3e50;
+    border-radius:15px;
+    padding:20px;
+    margin-top:20px;
+}
 h1,h2,h3{color:#ffdd57;}
-input,button,select{padding:10px;margin:6px 0;border-radius:8px;border:none;font-size:16px;}
+input,button,select{
+    padding:10px;
+    margin:6px 0;
+    border-radius:8px;
+    border:none;
+    font-size:16px;
+    width:50%;
+    max-width:300px;
+}
 button{background:#f39c12;cursor:pointer;}
 button:hover{background:#f1c40f;}
-.question{background:#34495e;padding:10px;border-radius:8px;margin:10px 0;}
-.correct{color:#2ecc71;font-weight:bold;}
-.wrong{color:#e74c3c;font-weight:bold;}
-table{width:100%;border-collapse:collapse;}
-th,td{border:1px solid #fff;padding:8px;text-align:center;}
-@media print{button,input,select{display:none;}body{background:#fff;color:#000;}.container{background:#fff;width:100%;}.question{background:#eee;color:#000;}td,th{background:#eee;color:#000;border:1px solid #000;}}
+.question{
+    background:#34495e;
+    padding:10px;
+    border-radius:8px;
+    margin:10px 0;
+}
+label{display:block; margin-top:10px;}
+@media print {
+    button,input,select { display:none; }
+    body { background:#fff; color:#000; }
+    .container { background:#fff; width:100%; }
+    .question { background:#eee; color:#000; }
+}
 </style>
 </head>
 <body>
+
 <div class="container">
-<h1>نظام الطالب – الاختبار</h1>
+<h1>نظام الطالب – الاختبارات</h1>
 
-<h3>الاسم:</h3>
-<input type="text" id="studentName" placeholder="أدخل اسمك">
+<h3>أدخل بياناتك</h3>
+<input id="studentName" placeholder="اسم الطالب (إجباري)">
 
-<h3>اختر المادة والموضوع</h3>
-<select id="subjectSelect"><option value="">اختر المادة</option></select>
-<select id="topicSelect"><option value="">اختر الموضوع</option></select>
-<button onclick="loadExam()">تحميل الاختبار</button>
+<h3>اختر الاختبار</h3>
+<select id="examSelect">
+    <option value="">-- اختر المادة والموضوع --</option>
+</select>
+<button onclick="loadExamFromSelect()">🔍 تحميل الاختبار</button>
 
 <hr>
 
-<h3 id="examTitle"></h3>
+<div id="examArea" style="display:none;">
+<h2 id="examTitle"></h2>
+<p id="examInfo"></p>
 <div id="questionsContainer"></div>
-
-<button onclick="submitExam()" style="background:#27ae60;color:#fff">إرسال الإجابات</button>
-<button onclick="showAnswers()" style="background:#2980b9;color:#fff">عرض الإجابات</button>
+<button onclick="submitExam()">✅ إرسال النتائج</button>
+</div>
 
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
 <script>
 const firebaseConfig = {
- apiKey: "AIzaSyAC4PNyd-nolBmhhbn_AIWS5e1FaN4DoMI",
-
+  apiKey: "AIzaSyAC4PNyd-nolBmhhbn_AIWS5e1FaN4DoMI",
   authDomain: "online-exam-3d750.firebaseapp.com",
-
   projectId: "online-exam-3d750",
-
-  storageBucket: "online-exam-3d750.firebasestorage.app",
-
-  messagingSenderId: "630696307824",
-
-  appId: "1:630696307824:web:9ed45dc0ff4434e1b858b5",
-
-  measurementId: "G-Q4WNK7QVMF"
-
 };
-
-
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+db.enablePersistence().catch(()=>{});
 
-const subjectSelect = document.getElementById("subjectSelect");
-const topicSelect = document.getElementById("topicSelect");
-const questionsContainer = document.getElementById("questionsContainer");
-const studentNameInput = document.getElementById("studentName");
-let currentQuestions = [];
-let studentAnswers = [];
-let examInfo = {};
+let examData = null;
+let answers = [];
+let questionOrder = [];
 
-async function loadSubjects() {
-    const snapshot = await db.collection("topics").orderBy("createdAt").get();
-    const subjects = new Set();
-    snapshot.forEach(doc => subjects.add(doc.data().subject));
-    subjects.forEach(sub => {
-        let option = document.createElement("option");
-        option.value = sub;
-        option.textContent = sub;
-        subjectSelect.appendChild(option);
+async function loadExamList(){
+    const snapshot = await db.collection("exams").orderBy("createdAt").get();
+    const select = document.getElementById("examSelect");
+    snapshot.forEach(doc=>{
+        const d = doc.data();
+        let opt = document.createElement("option");
+        opt.value = doc.id;
+        opt.text = d.subject + " - " + d.topic;
+        select.appendChild(opt);
     });
 }
+loadExamList();
 
-subjectSelect.addEventListener("change", async () => {
-    topicSelect.innerHTML = '<option value="">اختر الموضوع</option>';
-    const selectedSubject = subjectSelect.value;
-    const snapshot = await db.collection("topics").where("subject","==",selectedSubject).get();
-    snapshot.forEach(doc => {
-        const data = doc.data();
-        let option = document.createElement("option");
-        option.value = data.topic;
-        option.textContent = data.topic;
-        topicSelect.appendChild(option);
-    });
-});
-
-async function loadExam() {
-    const subject = subjectSelect.value;
-    const topic = topicSelect.value;
-    const studentName = studentNameInput.value.trim();
-
-    if (!studentName) { alert("أدخل اسمك أولاً"); return; }
-    if (!subject || !topic) { alert("اختر المادة والموضوع"); return; }
-
-    const docRef = db.collection("exams").doc(subject + "_" + topic);
-    const docSnap = await docRef.get();
-
-    if (!docSnap.exists) { alert("لم يتم نشر الاختبار بعد"); return; }
-
-    const data = docSnap.data();
-    examInfo = {subject, topic, studentName};
-    currentQuestions = data.questions.slice(0, data.numQuestions);
-    studentAnswers = Array(currentQuestions.length).fill(null);
-
-    displayQuestions(currentQuestions);
+function shuffleArray(array){
+    for(let i=array.length-1;i>0;i--){
+        const j = Math.floor(Math.random()*(i+1));
+        [array[i], array[j]]=[array[j], array[i]];
+    }
 }
 
-function displayQuestions(questions){
-    questionsContainer.innerHTML = "";
-    document.getElementById("examTitle").innerText = `اختبار: ${subjectSelect.value} - ${topicSelect.value}`;
-    questions.forEach((q,i)=>{
-        const div = document.createElement("div");
-        div.className = "question";
-        div.innerHTML = `<strong>سؤال ${i+1}:</strong> ${q.q}<br>
-        ${q.o.map((opt,j)=>`<label><input type="radio" name="q${i}" value="${j}"> ${opt}</label><br>`).join('')}`;
-        questionsContainer.appendChild(div);
+async function loadExamFromSelect(){
+    const student = studentName.value.trim();
+    if(!student){ alert("⚠️ أدخل اسمك"); return; }
 
-        div.querySelectorAll('input[type=radio]').forEach(radio=>{
-            radio.addEventListener('change',()=>{ studentAnswers[i]=parseInt(radio.value); });
+    const selected = document.getElementById("examSelect").value;
+    if(!selected){ alert("⚠️ اختر اختبارًا"); return; }
+
+    try {
+        const doc = await db.collection("exams").doc(selected).get();
+        if(doc.exists){
+            examData = doc.data();
+
+            const key = `order_${selected}_${student}`;
+            const savedOrder = localStorage.getItem(key);
+            if(savedOrder){
+                questionOrder = JSON.parse(savedOrder);
+            } else {
+                questionOrder = Array.from({length: examData.questions.length}, (_,i)=>i);
+                shuffleArray(questionOrder);
+                localStorage.setItem(key, JSON.stringify(questionOrder));
+            }
+
+            startExam(examData, selected);
+        }
+    } catch (err){
+        alert("❌ حدث خطأ: "+err);
+    }
+}
+
+function startExam(data, examId){
+    document.getElementById("examArea").style.display="block";
+    document.getElementById("examTitle").innerText = data.subject + " - " + data.topic;
+    document.getElementById("examInfo").innerText = `عدد الأسئلة: ${data.numQuestions}, زمن الاختبار: ${data.timeLimit} دقيقة`;
+
+    const container = document.getElementById("questionsContainer");
+    container.innerHTML="";
+    answers = new Array(data.questions.length).fill(null);
+
+    questionOrder.forEach((origIndex,i)=>{
+        const q = data.questions[origIndex];
+        let div = document.createElement("div");
+        div.className="question";
+        div.innerHTML = `<p>${i+1}. ${q.q}</p>
+        <label><input type="radio" name="q${i}" value="0"> ${q.o[0]}</label>
+        <label><input type="radio" name="q${i}" value="1"> ${q.o[1]}</label>
+        <label><input type="radio" name="q${i}" value="2"> ${q.o[2]}</label>
+        <label><input type="radio" name="q${i}" value="3"> ${q.o[3]}</label>`;
+        container.appendChild(div);
+
+        div.querySelectorAll('input[type=radio]').forEach(r=>{
+            r.addEventListener("change", ()=>{
+                answers[origIndex] = +r.value;
+            });
         });
     });
 }
 
 async function submitExam(){
-    const studentName = studentNameInput.value.trim();
-    if(!studentName) { alert("أدخل اسمك"); return; }
+    if(!examData){ alert("❌ لا يوجد اختبار لتحميله"); return; }
+    const student = studentName.value.trim();
+    if(!student){ alert("⚠️ أدخل اسمك"); return; }
 
-    let score = 0;
-    currentQuestions.forEach((q,i)=>{ if(studentAnswers[i]===q.a) score++; });
+    let score=0;
+    examData.questions.forEach((q,i)=>{
+        if(answers[i]===q.a) score++;
+    });
 
-    await db.collection("results").add({
-        student: studentName,
-        subject: examInfo.subject,
-        topic: examInfo.topic,
-        answers: studentAnswers,
+    const selected = document.getElementById("examSelect").value;
+    const result = {
+        student, 
+        subject: examData.subject,
+        topic: examData.topic,
         score,
-        total: currentQuestions.length,
-        createdAt: new Date()
-    });
+        total: examData.questions.length,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    };
 
-    alert(`تم إرسال الإجابات! درجتك: ${score}/${currentQuestions.length}`);
+    try {
+        await db.collection("results").add(result);
+        alert(`✔️ تم إرسال نتيجتك! الدرجة: ${score}/${examData.questions.length}`);
+    } catch {
+        localStorage.setItem("pendingResult", JSON.stringify(result));
+        alert(`✔️ تم حفظ النتيجة مؤقتًا وسيتم رفعها عند توفر الإنترنت.`);
+    }
 }
 
-function showAnswers(){
-    currentQuestions.forEach((q,i)=>{
-        const div = questionsContainer.children[i];
-        let studentChoice = studentAnswers[i];
-        div.innerHTML = `<strong>سؤال ${i+1}:</strong> ${q.q}<br>`;
-        q.o.forEach((opt,j)=>{
-            if(j === q.a){ div.innerHTML += `<p class="correct">✔️ ${opt}</p>`; }
-            else if(j === studentChoice){ div.innerHTML += `<p class="wrong">❌ ${opt}</p>`; }
-            else { div.innerHTML += `<p>${opt}</p>`; }
-        });
-    });
-}
-
-loadSubjects();
+window.addEventListener("online", async ()=>{
+    let pending = localStorage.getItem("pendingResult");
+    if(pending){
+        try{
+            await db.collection("results").add(JSON.parse(pending));
+            localStorage.removeItem("pendingResult");
+        } catch{}
+    }
+});
 </script>
 </body>
 </html>
