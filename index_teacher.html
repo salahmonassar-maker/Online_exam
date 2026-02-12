@@ -19,9 +19,12 @@ table{width:100%;border-collapse:collapse;}th,td{border:1px solid #fff;padding:8
 <div class="container">
 <h1>نظام إدارة الاختبارات – المعلم</h1>
 
-<h3>اختر اختبار موجود</h3>
+<h3>الاختبارات المنشورة</h3>
 <select id="examSelect"><option value="">-- اختر اختباراً --</option></select>
+<br>
 <button onclick="loadExamForTeacher()">🔄 تحميل الاختبار</button>
+<button onclick="showExam()" style="background:#27ae60;color:#fff">👁️ إظهار للطلاب</button>
+<button onclick="deleteExam()" style="background:#e74c3c;color:#fff">❌ حذف الاختبار</button>
 
 <hr>
 
@@ -70,23 +73,19 @@ table{width:100%;border-collapse:collapse;}th,td{border:1px solid #fff;padding:8
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script>
-const firebaseConfig = {
-  apiKey: "AIzaSyAC4PNyd-nolBmhhbn_AIWS5e1FaN4DoMI",
-  authDomain: "online-exam-3d750.firebaseapp.com",
-  projectId: "online-exam-3d750",
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
 
-// ===== المتغيرات =====
-let questions = [];
-let editIndex = null;
+<script>
+const firebaseConfig={apiKey:"AIzaSyAC4PNyd-nolBmhhbn_AIWS5e1FaN4DoMI",authDomain:"online-exam-3d750.firebaseapp.com",projectId:"online-exam-3d750"};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.firestore();
+db.enablePersistence().catch(err=>console.log("Persistence error:",err.code));
+
+let questions=[],editIndex=null,currentExamId=null;
 const questionsTable=document.getElementById("questionsTable");
 const resultsTable=document.getElementById("resultsTable");
 const examSelect=document.getElementById("examSelect");
 
-// ===== إدارة الأسئلة =====
+// إدارة الأسئلة
 function addQuestion(){questions.push({q:qText.value,o:[o0.value,o1.value,o2.value,o3.value],a:+correct.value});clearForm();renderQuestions();}
 function updateQuestion(){if(editIndex===null)return;questions[editIndex]={q:qText.value,o:[o0.value,o1.value,o2.value,o3.value],a:+correct.value};editIndex=null;clearForm();renderQuestions();}
 function renderQuestions(){questionsTable.innerHTML="<tr><th>#</th><th>السؤال</th><th>الإجراءات</th></tr>";questions.forEach((q,i)=>{let r=questionsTable.insertRow();r.insertCell(0).innerText=i+1;r.insertCell(1).innerText=q.q;r.insertCell(2).innerHTML=`<button onclick="editQuestion(${i})">✏️</button><button onclick="deleteQuestion(${i})">❌</button>`;});}
@@ -94,34 +93,109 @@ function editQuestion(i){editIndex=i;qText.value=questions[i].q;[o0.value,o1.val
 function deleteQuestion(i){if(confirm("هل تريد حذف هذا السؤال؟")){questions.splice(i,1);renderQuestions();}}
 function clearForm(){qText.value=o0.value=o1.value=o2.value=o3.value=correct.value="";}
 
-// ===== تصدير واستيراد =====
+// تصدير واستيراد
 function exportQuestions(){if(questions.length===0){alert("لا توجد أسئلة لتصديرها");return;}let a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(questions)],{type:"application/json"}));a.download="questions.json";a.click();}
 function importQuestions(e){let file=e.target.files[0];if(!file)return;let reader=new FileReader();reader.onload=()=>{try{questions=JSON.parse(reader.result);renderQuestions();alert("تم استيراد الأسئلة بنجاح!");}catch{alert("ملف غير صالح");}};reader.readAsText(file);}
 
-// ===== تحميل قائمة الاختبارات =====
-async function loadExamList(){examSelect.innerHTML='<option value="">-- اختر اختباراً --</option>';const snapshot=await db.collection("exams").orderBy("createdAt").get();snapshot.forEach(doc=>{const d=doc.data();let opt=document.createElement("option");opt.value=doc.id;opt.text=d.subject+" - "+d.topic;examSelect.appendChild(opt);});}
+// تحميل قائمة الاختبارات
+async function loadExamList(){
+    examSelect.innerHTML='<option value="">-- اختر اختباراً --</option>';
+    const snapshot=await db.collection("exams").orderBy("createdAt").get();
+    snapshot.forEach(doc=>{
+        const d=doc.data();
+        let opt=document.createElement("option");
+        opt.value=doc.id;
+        opt.text=d.subject+" - "+d.topic;
+        examSelect.appendChild(opt);
+    });
+}
 loadExamList();
 
-// ===== تحميل الاختبار للمعلم =====
-async function loadExamForTeacher(){const selected=examSelect.value;if(!selected)return alert("اختر اختباراً أولاً");try{const doc=await db.collection("exams").doc(selected).get();if(doc.exists){const data=doc.data();questions=data.questions||[];numQuestions.value=data.numQuestions||questions.length;timeLimit.value=data.timeLimit||10;subjectInput.value=data.subject;topicInput.value=data.topic;renderQuestions();}}catch(err){alert(err);}}
+// تحميل اختبار للمعلم
+async function loadExamForTeacher(){
+    const selected=examSelect.value;
+    if(!selected){alert("اختر اختباراً");return;}
+    currentExamId=selected;
+    const doc=await db.collection("exams").doc(selected).get();
+    if(doc.exists){
+        const data=doc.data();
+        questions=data.questions||[];
+        numQuestions.value=data.numQuestions||questions.length;
+        timeLimit.value=data.timeLimit||10;
+        subjectInput.value=data.subject;
+        topicInput.value=data.topic;
+        renderQuestions();
+    }
+}
 
-// ===== نشر الاختبار =====
+// نشر الاختبار
 function publishExam(){
     const subject=subjectInput.value.trim();
     const topic=topicInput.value.trim();
-    if(!subject||!topic){alert("⚠️ أدخل اسم المادة والموضوع");return;}
+    if(!subject||!topic){alert("⚠️ أدخل المادة والموضوع");return;}
     if(questions.length===0){alert("⚠️ أضف أسئلة قبل النشر");return;}
     const docId=subject+"_"+topic;
     db.collection("exams").doc(docId).set({
-        subject,topic,questions,numQuestions:+numQuestions.value||questions.length,timeLimit:+timeLimit.value||10,createdAt:firebase.firestore.FieldValue.serverTimestamp()
-    }).then(()=>{alert("✔️ تم نشر الاختبار بنجاح!");loadExamList();}).catch(err=>{alert("❌ حدث خطأ أثناء النشر: "+err);console.log(err);});
+        subject,topic,questions,
+        numQuestions:+numQuestions.value||questions.length,
+        timeLimit:+timeLimit.value||10,
+        createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+        isPublished:true
+    }).then(()=>{alert("✔️ تم نشر الاختبار بنجاح!");loadExamList();}).catch(err=>alert("❌ خطأ: "+err));
 }
 
-// ===== تحميل نتائج الطلاب =====
-async function loadResults(){resultsTable.innerHTML="<tr><th>الطالب</th><th>الدرجة</th></tr>";const selected=examSelect.value;if(!selected)return alert("اختر اختباراً أولاً");const doc=await db.collection("exams").doc(selected).get();if(!doc.exists)return;const data=doc.data();const snapshot=await db.collection("results").where("subject","==",data.subject).where("topic","==",data.topic).get();snapshot.forEach(d=>{const r=d.data();const row=resultsTable.insertRow();row.insertCell(0).innerText=r.student;row.insertCell(1).innerText=r.score+"/"+r.total;});}
+// إظهار الاختبار للطلاب
+function showExam(){
+    if(!currentExamId){alert("اختر اختباراً");return;}
+    db.collection("exams").doc(currentExamId).update({isPublished:true})
+      .then(()=>{alert("✅ تم إظهار الاختبار للطلاب");loadExamList();})
+      .catch(err=>alert("❌ خطأ: "+err));
+}
 
-// ===== أرشفة ومسح النتائج =====
-async function archiveAndDeleteResults(){const selected=examSelect.value;if(!selected)return alert("اختر اختباراً أولاً");const doc=await db.collection("exams").doc(selected).get();if(!doc.exists)return;if(!confirm("⚠️ سيتم أرشفة جميع نتائج الطلاب لهذا الاختبار ثم حذفها.\nهل أنت متأكد؟"))return;const snapshot=await db.collection("results").where("subject","==",doc.data().subject).where("topic","==",doc.data().topic).get();const batch=db.batch();const archiveBatch=db.batch();snapshot.forEach(d=>{archiveBatch.set(db.collection("archive_results").doc(d.id),{...d.data(),archivedAt:new Date()});batch.delete(d.ref);});await archiveBatch.commit();await batch.commit();resultsTable.innerHTML="<tr><th>الطالب</th><th>الدرجة</th></tr>";alert("✅ تم أرشفة النتائج ومسحها بنجاح");}
+// حذف الاختبار
+function deleteExam(){
+    if(!currentExamId){alert("اختر اختباراً");return;}
+    if(confirm("هل تريد حذف الاختبار نهائياً؟")){
+        db.collection("exams").doc(currentExamId).delete()
+          .then(()=>{alert("✅ تم حذف الاختبار");loadExamList();questionsTable.innerHTML="<tr><th>#</th><th>السؤال</th><th>الإجراءات</th></tr>";})
+          .catch(err=>alert("❌ خطأ: "+err));
+    }
+}
+
+// تحميل النتائج
+async function loadResults(){
+    resultsTable.innerHTML="<tr><th>الطالب</th><th>الدرجة</th></tr>";
+    if(!currentExamId){alert("اختر اختباراً");return;}
+    const doc=await db.collection("exams").doc(currentExamId).get();
+    if(!doc.exists)return;
+    const data=doc.data();
+    const snapshot=await db.collection("results").where("subject","==",data.subject).where("topic","==",data.topic).get();
+    snapshot.forEach(d=>{
+        const r=d.data();
+        let row=resultsTable.insertRow();
+        row.insertCell(0).innerText=r.student;
+        row.insertCell(1).innerText=r.score+"/"+r.total;
+    });
+}
+
+// أرشفة ومسح النتائج
+async function archiveAndDeleteResults(){
+    if(!currentExamId){alert("اختر اختباراً");return;}
+    const doc=await db.collection("exams").doc(currentExamId).get();
+    if(!doc.exists)return;
+    if(!confirm("⚠️ سيتم أرشفة جميع نتائج الطلاب ثم مسحها، هل أنت متأكد؟")) return;
+    const snapshot=await db.collection("results").where("subject","==",doc.data().subject).where("topic","==",doc.data().topic).get();
+    const batch=db.batch();
+    const archiveBatch=db.batch();
+    snapshot.forEach(d=>{
+        archiveBatch.set(db.collection("archive_results").doc(d.id),{...d.data(),archivedAt:new Date()});
+        batch.delete(d.ref);
+    });
+    await archiveBatch.commit();
+    await batch.commit();
+    resultsTable.innerHTML="<tr><th>الطالب</th><th>الدرجة</th></tr>";
+    alert("✅ تم أرشفة النتائج ومسحها بنجاح");
+}
 </script>
 </body>
 </html>
